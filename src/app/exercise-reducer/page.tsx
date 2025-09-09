@@ -1,26 +1,28 @@
-'use client';
+"use client";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { useState } from 'react';
-import { FlightOption, getFlightOptions } from '@/app/exerciseUtils';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  createContext,
+  ReactNode,
+  use,
+  useContext,
+  useReducer,
+  useState,
+} from "react";
+import { FlightOption, getFlightOptions } from "@/app/exerciseUtils";
 
-interface SearchResultsProps {
-  flightOptions: FlightOption[];
-  passengers: number;
-  onBack: () => void;
-}
+function SearchResults() {
+  const { handleReset: onBack, state } = useFlightContext();
+  const flightOptions = state.flightOptions || [];
+  const passengers = state.searchParams?.passengers || 1;
 
-function SearchResults({
-  flightOptions,
-  passengers,
-  onBack,
-}: SearchResultsProps) {
-  const [selectedFlight, setSelectedFlight] = useState<FlightOption | null>(
-    null
-  );
+  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null);
+  const selectedFlight =
+    flightOptions.find((flight) => flight.id === selectedFlightId) || null;
+
   const totalPrice = selectedFlight ? selectedFlight.price * passengers : 0;
 
   return (
@@ -38,8 +40,8 @@ function SearchResults({
             key={flight.id}
             className={`p-4 border rounded hover:shadow-md ${
               selectedFlight?.id === flight.id
-                ? 'border-blue-500 bg-blue-50'
-                : ''
+                ? "border-blue-500 bg-blue-50"
+                : ""
             }`}
           >
             <div className="flex justify-between items-center">
@@ -51,9 +53,9 @@ function SearchResults({
                 <p className="text-xl font-bold">${flight.price}</p>
                 <Button
                   className="mt-2 bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600"
-                  onClick={() => setSelectedFlight(flight)}
+                  onClick={() => setSelectedFlightId(flight.id)}
                 >
-                  {selectedFlight?.id === flight.id ? 'Selected' : 'Select'}
+                  {selectedFlight?.id === flight.id ? "Selected" : "Select"}
                 </Button>
               </div>
             </div>
@@ -76,40 +78,42 @@ function SearchResults({
   );
 }
 
-function BookingForm({
-  onSubmit,
-  isSubmitting,
-}: {
-  onSubmit: (formData: {
+function BookingForm() {
+  const { handleSubmit: onSubmit, state } = useFlightContext();
+
+  const isSubmitting = state.status === "loading";
+
+  const [formData, setFormData] = useState<{
     destination: string;
     departure: string;
     arrival: string;
     passengers: number;
     isOneWay: boolean;
-  }) => void;
-  isSubmitting: boolean;
-}) {
-  const [destination, setDestination] = useState('');
-  const [departure, setDeparture] = useState('');
-  const [arrival, setArrival] = useState('');
-  const [passengers, setPassengers] = useState(1);
-  const [isOneWay, setIsOneWay] = useState(false);
+  }>(
+    state.searchParams || {
+      destination: "",
+      departure: "",
+      arrival: "",
+      passengers: 1,
+      isOneWay: false,
+    }
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
-      destination,
-      departure,
-      arrival,
-      passengers,
-      isOneWay,
-    });
+    onSubmit(formData);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="flex items-center space-x-2 mb-4">
-        <Switch id="one-way" checked={isOneWay} onCheckedChange={setIsOneWay} />
+        <Switch
+          id="one-way"
+          checked={formData.isOneWay}
+          onCheckedChange={(isOneWay) =>
+            setFormData((prevState) => ({ ...prevState, isOneWay }))
+          }
+        />
         <Label htmlFor="one-way">One-way flight</Label>
       </div>
 
@@ -120,8 +124,13 @@ function BookingForm({
         <Input
           type="text"
           id="destination"
-          value={destination}
-          onChange={(e) => setDestination(e.target.value)}
+          value={formData.destination}
+          onChange={(e) =>
+            setFormData((prevState) => ({
+              ...prevState,
+              destination: e.target.value,
+            }))
+          }
           required
         />
       </div>
@@ -133,13 +142,18 @@ function BookingForm({
         <Input
           type="date"
           id="departure"
-          value={departure}
-          onChange={(e) => setDeparture(e.target.value)}
+          value={formData.departure}
+          onChange={(e) =>
+            setFormData((prevState) => ({
+              ...prevState,
+              departure: e.target.value,
+            }))
+          }
           required
         />
       </div>
 
-      {!isOneWay && (
+      {!formData.isOneWay && (
         <div>
           <Label htmlFor="arrival" className="block mb-1">
             Return Date
@@ -147,8 +161,13 @@ function BookingForm({
           <Input
             type="date"
             id="arrival"
-            value={arrival}
-            onChange={(e) => setArrival(e.target.value)}
+            value={formData.arrival}
+            onChange={(e) =>
+              setFormData((prevState) => ({
+                ...prevState,
+                arrival: e.target.value,
+              }))
+            }
             required
           />
         </div>
@@ -161,8 +180,13 @@ function BookingForm({
         <Input
           type="number"
           id="passengers"
-          value={passengers}
-          onChange={(e) => setPassengers(parseInt(e.target.value))}
+          value={formData.passengers}
+          onChange={(e) =>
+            setFormData((prevState) => ({
+              ...prevState,
+              passengers: parseInt(e.target.value),
+            }))
+          }
           min="1"
           max="9"
           required
@@ -170,24 +194,104 @@ function BookingForm({
       </div>
 
       <Button type="submit" disabled={isSubmitting} className="w-full">
-        {isSubmitting ? 'Searching...' : 'Search Flights'}
+        {isSubmitting ? "Searching..." : "Search Flights"}
       </Button>
     </form>
   );
 }
 
-export default function Page() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isError, setIsError] = useState(false);
-  const [flightOptions, setFlightOptions] = useState<FlightOption[]>([]);
-  const [showResults, setShowResults] = useState(false);
-  const [searchParams, setSearchParams] = useState<{
+type FlightState = {
+  status: "loading" | "success" | "error" | "idle";
+  flightOptions: FlightOption[] | null;
+  searchParams: {
     destination: string;
     departure: string;
     arrival: string;
     passengers: number;
     isOneWay: boolean;
-  } | null>(null);
+  } | null;
+};
+
+type FlightAction =
+  | {
+      type: "LOADING";
+      searchParams: {
+        destination: string;
+        departure: string;
+        arrival: string;
+        passengers: number;
+        isOneWay: boolean;
+      };
+    }
+  | {
+      type: "SUCCESS";
+      flightOptions: FlightOption[];
+    }
+  | {
+      type: "ERROR";
+    }
+  | {
+      type: "RESET";
+    };
+
+const flightReducer = (
+  state: FlightState,
+  action: FlightAction
+): FlightState => {
+  switch (action.type) {
+    case "LOADING":
+      return {
+        ...state,
+        status: "loading",
+        searchParams: action.searchParams,
+      };
+    case "SUCCESS":
+      return {
+        ...state,
+        status: "success",
+        flightOptions: action.flightOptions,
+      };
+    case "ERROR":
+      return {
+        ...state,
+        status: "error",
+      };
+    case "RESET":
+      return {
+        ...state,
+        status: "idle",
+      };
+  }
+};
+
+const initialFlightState: FlightState = {
+  status: "idle",
+  flightOptions: null,
+  searchParams: null,
+};
+
+const FlightContext = createContext<{
+  state: FlightState;
+  handleSubmit: (formData: {
+    destination: string;
+    departure: string;
+    arrival: string;
+    passengers: number;
+    isOneWay: boolean;
+  }) => Promise<void>;
+  handleReset: () => void;
+} | null>(null);
+
+const useFlightContext = () => {
+  const context = useContext(FlightContext);
+  if (!context) {
+    throw new Error("useFlightContext must be used within a FlightProvider");
+  }
+  return context;
+};
+
+const FlightProvider = ({ children }: { children: ReactNode }) => {
+  const [state, dispatch] = useReducer(flightReducer, initialFlightState);
 
   const handleSubmit = async (formData: {
     destination: string;
@@ -196,44 +300,53 @@ export default function Page() {
     passengers: number;
     isOneWay: boolean;
   }) => {
-    setIsSubmitting(true);
-    setIsError(false);
-    setSearchParams(formData);
+    dispatch({ type: "LOADING", searchParams: formData });
 
     try {
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1500));
-
       const mockFlights = await getFlightOptions(formData);
-      setFlightOptions(mockFlights);
-      setShowResults(true);
+      dispatch({ type: "SUCCESS", flightOptions: mockFlights });
     } catch {
-      setIsError(true);
-    } finally {
-      setIsSubmitting(false);
+      dispatch({ type: "ERROR" });
     }
   };
+
+  const handleReset = () => dispatch({ type: "RESET" });
+
+  return (
+    <FlightContext.Provider value={{ state, handleSubmit, handleReset }}>
+      {children}
+    </FlightContext.Provider>
+  );
+};
+
+const FlightContent = () => {
+  const { state } = useFlightContext();
 
   return (
     <div className="w-full max-w-2xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">Flight Booking</h1>
-
-      {!showResults ? (
+      {state.status !== "success" ? (
         <>
-          <BookingForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
-          {isError && (
+          <BookingForm />
+          {state.status === "error" && (
             <div className="mt-4 p-4 bg-red-100 text-red-700 rounded">
               An error occurred while searching for flights. Please try again.
             </div>
           )}
         </>
       ) : (
-        <SearchResults
-          flightOptions={flightOptions}
-          passengers={searchParams?.passengers || 1}
-          onBack={() => setShowResults(false)}
-        />
+        <SearchResults />
       )}
     </div>
+  );
+};
+
+export default function Page() {
+  return (
+    <FlightProvider>
+      <FlightContent />
+    </FlightProvider>
   );
 }
